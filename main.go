@@ -17,25 +17,7 @@ import (
 	"github.com/prometheus/prometheus/documentation/examples/custom-sd/adapter"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-)
-
-var Version string
-
-const (
-	metricsNamespace = "prometheus_sd_http"
-)
-
-var (
-	metricsRequestsCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: metricsNamespace,
-			Name:      "http_requests_total",
-			Help:      "Number of http requests.",
-		},
-		[]string{"code", "api_url"},
-	)
 )
 
 var (
@@ -43,8 +25,6 @@ var (
 	apiURL          = a.Flag("api.url", "The url the HTTP API sd is listening on for requests.").Default("http://localhost:8080").Strings()
 	outputFile      = a.Flag("output.file", "Output file for file_sd compatible file.").Default("custom_sd.json").Strings()
 	refreshInterval = a.Flag("refresh.interval", "Refresh interval to re-read the instance list.").Default("60").Int()
-	metricsAddr     = a.Flag("metrics.addr", "Address to bind metrics server to").Default(":8080").String()
-	metricsPath     = a.Flag("metrics.path", "Path to serve metrics server to").Default("/metrics").String()
 	logger          log.Logger
 )
 
@@ -63,10 +43,6 @@ type discovery struct {
 	logger          log.Logger
 }
 
-func init() {
-	prometheus.MustRegister(metricsRequestsCounter)
-}
-
 func (d *discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 	for c := time.Tick(time.Duration(d.refreshInterval) * time.Second); ; {
 		url := fmt.Sprintf("%s", d.apiURL)
@@ -77,13 +53,6 @@ func (d *discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 			time.Sleep(time.Duration(d.refreshInterval) * time.Second)
 			continue
 		}
-
-		metricsRequestsCounter.With(
-			prometheus.Labels{
-				"code":    strconv.Itoa(resp.StatusCode),
-				"api_url": url,
-			},
-		).Inc()
 
 		rawtgs := []struct {
 			Targets []string          `json:"targets"`
@@ -152,9 +121,6 @@ func cancelDiscoverers() {
 }
 
 func main() {
-	a.Version(Version)
-	a.HelpFlag.Short('h')
-
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Println("err: ", err)
